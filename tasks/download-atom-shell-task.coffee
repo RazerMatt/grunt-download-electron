@@ -24,7 +24,8 @@ module.exports = (grunt) ->
       callback error, results, code
 
   getArch = ->
-    switch process.platform
+    platform = grunt.config(TaskName).platform
+    switch platform
       when 'win32' then 'ia32'
       when 'darwin' then 'x64'
       else process.arch
@@ -48,11 +49,13 @@ module.exports = (grunt) ->
       excludeHiddenUnix: false
       inflateSymlinks: false
 
-  unzipFile = (zipPath, callback) ->
+  unzipFile = (zipPath, callback) ->    
+    platform = grunt.config(TaskName).platform
+    grunt.verbose.writeln "Platform: ", platform
     grunt.verbose.writeln "Unzipping #{path.basename(zipPath)}."
     directoryPath = path.dirname zipPath
-
-    if process.platform is 'darwin'
+    
+    if platform is 'darwin'
       # The zip archive of darwin build contains symbol links, only the "unzip"
       # command can handle it correctly.
       spawn {cmd: 'unzip', args: [zipPath, '-d', directoryPath]}, (error) ->
@@ -67,7 +70,7 @@ module.exports = (grunt) ->
         fs.unlinkSync zipPath
 
         # Make sure atom/electron is executable on Linux
-        if process.platform is 'linux'
+        if platform is 'linux'
           electronAppPath = path.join(directoryPath, 'electron')
           fs.chmodSync(electronAppPath, '755') if fs.existsSync(electronAppPath)
 
@@ -115,13 +118,14 @@ module.exports = (grunt) ->
 
   grunt.registerTask TaskName, 'Download electron',  ->
     @requiresConfig "#{TaskName}.version", "#{TaskName}.outputDir"
-    {version, outputDir, downloadDir, symbols, rebuild, apm, token, appDir} = grunt.config TaskName
+    {version, outputDir, downloadDir, symbols, rebuild, apm, token, appDir, platform} = grunt.config TaskName
     downloadDir ?= path.join os.tmpdir(), 'downloaded-electron'
     symbols ?= false
     rebuild ?= true
     apm ?= getApmPath()
+    platform ?= process.platform
     version = "v#{version}"
-    versionDownloadDir = path.join(downloadDir, version)
+    versionDownloadDir = path.join(downloadDir, version, platform)
     appDir ?= process.cwd()
 
     done = @async()
@@ -154,9 +158,9 @@ module.exports = (grunt) ->
       # Which file to download
       filename =
         if symbols
-          "#{projectName}-#{version}-#{process.platform}-#{getArch()}-symbols.zip"
+          "#{projectName}-#{version}-#{platform}-#{getArch()}-symbols.zip"
         else
-          "#{projectName}-#{version}-#{process.platform}-#{getArch()}.zip"
+          "#{projectName}-#{version}-#{platform}-#{getArch()}.zip"
 
       # Find the asset of current platform.
       for asset in releases[0].assets when asset.name is filename
